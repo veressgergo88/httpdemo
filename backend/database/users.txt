@@ -1,4 +1,5 @@
-1,John Smith,20
-2,James Smith,30
-3,Jake Strong,40
-4,John Houston,50
+0,John Wick,45
+1,Béla,0
+2,Ferenc,45
+3,John Wick,45
+4,Jánoska,36

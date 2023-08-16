@@ -7,6 +7,7 @@ import { z } from "zod";
 const server = express();
 
 server.use(cors());
+server.use(express.json())
 
 type User = {
   id: number;
@@ -14,47 +15,40 @@ type User = {
   age: number;
 };
 
+const parse = (data: string): User[] =>
+data
+.split("\n")
+.filter((row) => !!row)
+.map((row) => ({
+  id: +row.split(",")[0],
+  name: row.split(",")[1],
+  age: +row.split(",")[2],
+}));
+
+const stringify = (data: User[]): string => data
+    .map(user => `${user.id},${user.name},${user.age}`)
+    .join("\n")
+
 const QueryParamSchema = z.object({
   name: z.string(),
 });
 
-const parse = (data: string): User[] =>
-  data
-    .split("\n")
-    .filter((row) => !!row)
-    .map((row) => ({
-      id: +row.split(",")[0],
-      name: row.split(",")[1],
-      age: +row.split(",")[2],
-    }));
-
 // REST API - GET (method) /api/users (path) => array
-/*server.get("/api/users", async (req: Request, res: Response) => {
-  const userData = await fs.readFile("./database/users.txt", "utf-8")
-  const response: User[] = parse(userData)
-  res.json(response)
-});
-*/
-
 // REST API - GET - (/api/users?name=John, /api/users?age=30&name=John) => array
-/*
 server.get("/api/users", async (req: Request, res: Response) => {
-  //validálunk
+  const userData = await fs.readFile("./database/users.txt", "utf-8");
+  const users = parse(userData);
+  
   const result = QueryParamSchema.safeParse(req.query);
-  if (!result.success) return res.sendStatus(400);
+  if(!result.success) 
+    return res.json(users);
 
   const query = result.data;
-
-  //olvassuk a fájl adatait
-  const userData = await fs.readFile("./database/users.txt", "utf-8");
-  //az adatot átalakítjuk JSON formátumra
-  const users = parse(userData);
-  //szűrjük a name értéke alapján
-  const filteredUsers = users.filter((user) => user.name.includes(query.name));
-  //válasznak kiíratjuk a szűrt adatot
+  let filteredUsers = users.filter((user) => user.name.includes(query.name));
+  
   res.json(filteredUsers);
 });
-*/
+
 // REST API - GET /api/users/15 (id -ra szokás!!!) path variable => 1 object
 server.get("/api/users/:id", async (req: Request, res: Response) => {
   const id = +req.params.id
@@ -69,4 +63,64 @@ server.get("/api/users/:id", async (req: Request, res: Response) => {
   res.json(filteredUser);
 });
 
+// REST API - POST
+const CreationSchema = z.object({
+  name: z.string(),
+  age: z.number()
+});
+
+let id = 0
+
+server.post("/api/users", async (req: Request, res: Response) => {
+  const result = CreationSchema.safeParse(req.body)
+  if (!result.success)
+    return res.sendStatus(400).json(result.error.issues)
+
+  const userData = await fs.readFile("./database/users.txt", "utf-8")
+  const users = parse(userData)
+  users.push({id: users.length?users[users.length-1].id + 1:0, name: result.data.name, age: result.data.age, })
+
+  await fs.writeFile("./database/users.txt", stringify(users), "utf-8")  
+
+  res.sendStatus(200)
+})
+
+// REST API - DELETE id
+server.delete("/api/users/:id", async (req: Request, res: Response) => {
+
+  const id = +req.params.id
+
+  const userData = await fs.readFile("./database/users.txt", "utf-8")
+  const users = parse(userData)
+  let filteredUser = users.filter(user => user.id !== id)
+
+  await fs.writeFile("./database/users.txt",stringify(filteredUser), "utf-8")
+
+  res.sendStatus(200)
+})
+
+// REST API - UPGRADE/PATCH
+const PatchSchema = z.object({
+  id: z.number().optional(),
+  name: z.string().min(1).optional(),
+  age: z.number().optional()
+});
+
+server.patch("/api/users/:id", async (req, res) => {
+  const id = +req.params.id
+  
+  const result = PatchSchema.safeParse(req.body)
+  if(!result.success) 
+    return res.sendStatus(400).json(result.error.issues);
+
+  const userData = await fs.readFile("./database/users.txt", "utf-8")
+  const users = parse(userData)
+  let filteredUser = users.map((user) => user.id === id ? {name: result.data.name || user.name, age: result.data.age === undefined ? user.age : result.data.age, id} : user)
+
+  await fs.writeFile("./database/users.txt", stringify(filteredUser), "utf-8")
+  
+  res.sendStatus(200)
+})
+
 server.listen(3333);
+
