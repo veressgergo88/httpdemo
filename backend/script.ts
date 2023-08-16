@@ -3,6 +3,8 @@ import type { Request, Response } from "express";
 import cors from "cors";
 import fs from "fs/promises";
 import { z } from "zod";
+import { Client } from 'pg'
+const client = new Client("postgres://veress.gergo88:S68naWfBXvpT@ep-bitter-snow-42313997.us-west-2.aws.neon.tech/neondb?options=project%3Dep-bitter-snow-42313997&sslmode=require")
 
 const server = express();
 
@@ -36,17 +38,9 @@ const QueryParamSchema = z.object({
 // REST API - GET (method) /api/users (path) => array
 // REST API - GET - (/api/users?name=John, /api/users?age=30&name=John) => array
 server.get("/api/users", async (req: Request, res: Response) => {
-  const userData = await fs.readFile("./database/users.txt", "utf-8");
-  const users = parse(userData);
+  const result = await client.query("SELECT * FROM profile")
   
-  const result = QueryParamSchema.safeParse(req.query);
-  if(!result.success) 
-    return res.json(users);
-
-  const query = result.data;
-  let filteredUsers = users.filter((user) => user.name.includes(query.name));
-  
-  res.json(filteredUsers);
+  res.json(result.rows)
 });
 
 // REST API - GET /api/users/15 (id -ra szokás!!!) path variable => 1 object
@@ -122,5 +116,6 @@ server.patch("/api/users/:id", async (req, res) => {
   res.sendStatus(200)
 })
 
-server.listen(3333);
+client.connect().then(() => server.listen(3333))
+
 
