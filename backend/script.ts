@@ -38,10 +38,15 @@ const QueryParamSchema = z.object({
 // REST API - GET (method) /api/users (path) => array
 // REST API - GET - (/api/users?name=John, /api/users?age=30&name=John) => array
 server.get("/api/users", async (req: Request, res: Response) => {
-  const result = await client.query("SELECT * FROM profile")
-  
-  res.json(result.rows)
-});
+  const result = QueryParamSchema.safeParse(req.query)
+  if (result.success === false) {
+    return res.sendStatus(400)
+  }
+  const name = result.data.name
+  const answer = await client.query(`SELECT * FROM profile WHERE name='${name}';`, [])
+  res.json(answer.rows)
+})
+
 
 // REST API - GET /api/users/15 (id -ra szokás!!!) path variable => 1 object
 server.get("/api/users/:id", async (req: Request, res: Response) => {
